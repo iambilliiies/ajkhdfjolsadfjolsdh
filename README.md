@@ -1,5 +1,7 @@
 # Protect
 
+Lorsqu’un nouveau serveur ajoute Protect, le propriétaire principal défini par `config.json.owners[0]` reçoit un MP en embed avec une couronne 👑, le nom et l’icône du serveur, son propriétaire, son nombre de membres et une invitation. Le bot crée une invitation valable 24 heures pour une utilisation s’il possède View Channel et Create Instant Invite dans un salon ; sinon le MP précise que le lien est indisponible. Une URL personnalisée du serveur est utilisée si elle existe. Cette notification respecte `mp settings` et n’empêche pas l’antiraid de fonctionner si les MP sont fermés. Elle est également envoyée si `secur invite` provoque ensuite le départ du bot.
+
 La catégorie **Modération** est dans `commands/moderation/` et occupe une seule page du help. Les commandes sont réservées aux administrateurs, propriétaire du serveur et owners du bot. Les actions sur plusieurs membres affichent les réussites et échecs. Les membres protégés (propriétaire, owners, bot lui-même, auteur de la commande) et ceux au-dessus du bot ou du demandeur ne sont pas sanctionnés.
 
 - Mentions/IDs : `+warn @Membre @Autre raison`, `+tempmute @Membre 10m raison`. Noms composés : `+warn Jean Dupont,,raison`, `+tempmute Jean Dupont,,Autre Nom,,10m,,raison`. Pour des actions sans raison, les noms/IDs sont séparés par `,,`. Pour éviter l’ambiguïté d’une raison identique au nom d’un membre, préfère les mentions.

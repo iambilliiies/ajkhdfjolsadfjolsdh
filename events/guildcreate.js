@@ -2,6 +2,7 @@ const settings = require('../utils/settings');
 module.exports = {
     name: 'guildCreate',
     async execute(guild) {
+        await require('../utils/guildJoinNotification').notify(guild);
         if (settings.read().secureInvite) {
             const ownerId = settings.primaryOwner();
             if (!ownerId) throw new Error('secur invite nécessite un propriétaire principal dans config.json.');
