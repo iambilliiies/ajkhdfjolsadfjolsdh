@@ -20,11 +20,16 @@ module.exports = {
                 .setTitle(`${title.slice(0, 200)} • ${page.count} commande${page.count > 1 ? 's' : ''}`)
                 .setDescription(`${t('*<paramètre> : obligatoire • [paramètre] : facultatif*')}${page.intro ? `\n${page.intro}` : ''}\n\n${page.description}`)
                 .setFooter({ text: `${t('Page')} ${current + 1}/${pages.length} • ${t('Préfixe')} : ${prefix}${page.sections > 1 ? ` • ${t('Catégorie')} ${page.section}/${page.sections}` : ''}${disabled ? ` • ${t('Menu terminé')}` : ''}` });
-            const button = (id, label, style, unavailable = false) => new ButtonBuilder().setCustomId(`help:${id}`).setLabel(label).setStyle(style).setDisabled(disabled || unavailable);
+            const button = (id, label, style, unavailable = false, emoji) => {
+                const component = new ButtonBuilder().setCustomId(`help:${id}`).setStyle(style).setDisabled(disabled || unavailable);
+                if (label) component.setLabel(label);
+                if (emoji) component.setEmoji(emoji);
+                return component;
+            };
             const row = new ActionRowBuilder().addComponents(
                 button('first', `⏮ ${t('Début')}`, ButtonStyle.Secondary, current === 0),
-                button('previous', `◀ ${t('Précédent')}`, ButtonStyle.Secondary, current === 0),
-                button('next', `${t('Suivant')} ▶`, ButtonStyle.Secondary, current === pages.length - 1),
+                button('previous', null, ButtonStyle.Secondary, current === 0, '⬅️'),
+                button('next', null, ButtonStyle.Secondary, current === pages.length - 1, '➡️'),
                 button('last', `${t('Fin')} ⏭`, ButtonStyle.Secondary, current === pages.length - 1),
                 button('close', t('Fermer'), ButtonStyle.Danger)
             );
@@ -37,8 +42,8 @@ module.exports = {
             }
             if (mode !== 'select') components.push(row);
             else components.push(new ActionRowBuilder().addComponents(
-                button('groupPrevious', `◀ ${t('Précédent')}`, ButtonStyle.Secondary, current < 25),
-                button('groupNext', `${t('Suivant')} ▶`, ButtonStyle.Secondary, Math.floor(current / 25) === Math.floor((pages.length - 1) / 25)),
+                button('groupPrevious', null, ButtonStyle.Secondary, current < 25, '⬅️'),
+                button('groupNext', null, ButtonStyle.Secondary, Math.floor(current / 25) === Math.floor((pages.length - 1) / 25), '➡️'),
                 button('close', t('Fermer'), ButtonStyle.Danger)
             ));
             return {
