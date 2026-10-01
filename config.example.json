@@ -1,0 +1,9 @@
+{
+  "token": "YOUR_DISCORD_BOT_TOKEN",
+  "defaultPrefix": "+",
+  "owners": ["YOUR_DISCORD_USER_ID"],
+  "supportInvite": "https://discord.gg/KX5bGypTVh",
+  "suggestionChannelId": "1555237521238134804",
+  "updateChannelId": "1555239058991485088",
+  "fivemServer": "https://cfx.re/join/bddy34d"
+}
