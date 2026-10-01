@@ -1,25 +1,46 @@
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const path = require('node:path');
+const fs = require('node:fs');
 const run = promisify(execFile);
 const root = path.join(__dirname, '..');
 let running = false;
+function gitRuntime() {
+    const candidates = [process.env.PROTECT_GIT_PATH];
+    if (process.platform === 'win32') {
+        if (process.env.USERPROFILE) candidates.push(path.join(process.env.USERPROFILE, '.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/git.exe'));
+        for (const folder of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]) if (folder) candidates.push(path.join(folder, 'Git/cmd/git.exe'));
+    }
+    const executable = candidates.find(file => file && fs.existsSync(file)) || 'git';
+    const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+    if (executable !== 'git' && process.platform === 'win32') {
+        const bin = path.resolve(path.dirname(executable), '../mingw64/bin');
+        if (fs.existsSync(path.join(bin, 'git-remote-https.exe'))) {
+            env.GIT_EXEC_PATH = bin;
+            env.PATH = `${bin}${path.delimiter}${env.PATH || env.Path || ''}`;
+        }
+    }
+    return { executable, env };
+}
 async function update(client) {
     if (running) throw new Error('Une mise à jour est déjà en cours.');
     running = true;
-    const git = async args => (await run('git', args, { cwd: root, timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 })).stdout.trim();
+    const runtime = gitRuntime();
+    const git = async args => (await run(runtime.executable, args, { cwd: root, env: runtime.env, timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 })).stdout.trim();
     try {
         await git(['rev-parse', '--is-inside-work-tree']);
         if (await git(['status', '--porcelain'])) throw new Error('Des modifications locales existent. Enregistre-les avant de mettre à jour.');
         const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
         if (branch === 'HEAD') throw new Error('Le dépôt doit être sur une branche.');
-        const upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
+        let upstream;
+        try { upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']); }
+        catch { throw new Error('La branche ne suit aucun dépôt distant. Configure origin/main avec git branch --set-upstream-to=origin/main.'); }
         await git(['fetch', '--prune']);
         const before = await git(['rev-parse', 'HEAD']);
         await git(['merge', '--ff-only', upstream]);
         const after = await git(['rev-parse', 'HEAD']);
         if (before !== after && client) await require('./updateAnnouncements').publish(client);
-        return before === after ? 'Le bot est déjà à jour.' : 'Mise à jour installée. Relance npm install si les dépendances ont changé, puis redémarre le bot.';
+        return before === after ? 'Protect est déjà à jour.' : `Mise à jour installée depuis ${upstream} (${after.slice(0, 7)}). Redémarre le bot pour activer le nouveau code. Si les dépendances ont changé, lance npm install avant le redémarrage.`;
     } catch (error) {
         if (error.code === 'ENOENT') throw new Error('Git est introuvable. Installe Git pour utiliser les mises à jour.');
         if (String(error.stderr || '').includes('not a git repository')) throw new Error('Ce dossier n’est pas un dépôt Git. Un dépôt de mise à jour doit être configuré avant utilisation.');
@@ -34,4 +55,4 @@ function schedule(client) {
         client.updateTimer.unref();
     }
 }
-module.exports = { update, schedule };
+module.exports = { update, schedule, gitRuntime };
