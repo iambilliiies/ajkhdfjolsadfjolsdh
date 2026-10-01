@@ -52,7 +52,10 @@ test('boutons, préfixe personnalisé, autre utilisateur et fermeture', async t 
     };
     await require('../commands/general/help').execute(message, [], client, { prefix: '?' });
     assert.ok(payload.embeds[0].toJSON().description.includes('?help'));
-    assert.equal(payload.components[0].toJSON().components.length, 5);
+    const buttons = payload.components[0].toJSON().components;
+    assert.equal(buttons.length, 3);
+    assert.deepEqual(buttons.slice(0, 2).map(button => button.emoji.name), ['⬅️', '➡️']);
+    assert.ok(buttons.slice(0, 2).every(button => !button.label));
     const interaction = { user: { id: 'test-user' }, customId: 'help:next', update: async value => { update = value; } };
     await callbacks.collect(interaction);
     assert.ok(update.embeds[0].toJSON().description.includes('?ban'));
