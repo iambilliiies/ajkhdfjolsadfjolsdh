@@ -29,6 +29,8 @@ async function update(client) {
     const git = async args => (await run(runtime.executable, args, { cwd: root, env: runtime.env, timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 })).stdout.trim();
     try {
         await git(['rev-parse', '--is-inside-work-tree']);
+        try { await git(['rev-parse', '--verify', 'HEAD']); }
+        catch { throw new Error('Le dossier Git n’a pas encore de commit. Rétablis un checkout de origin/main après avoir sauvegardé le dossier du bot ; un simple git pull ne peut pas réparer cet état.'); }
         const localChanges = await git(['status', '--porcelain']);
         if (localChanges) {
             const files = localChanges.split('\n').slice(0, 12).map(line => line.trim()).join('\n').replace(/`/g, 'ˋ');

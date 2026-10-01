@@ -37,3 +37,6 @@ test('branche sans suivi et historique divergent donnent une erreur sans reset',
     const s=setup({fail:'rev-parse --abbrev-ref --symbolic-full-name @{upstream}'});await assert.rejects(s.updater.update(),/ne suit aucun/);
     const divergence=setup({fail:'merge --ff-only origin/main',stderr:'Not possible to fast-forward'});await assert.rejects(divergence.updater.update(),/fast-forward/);assert.ok(!divergence.calls.some(c=>c.args[0]==='reset'));
 });
+test('ancien dossier Git sans premier commit signalé avant toute mise à jour',async()=>{
+    const s=setup({fail:'rev-parse --verify HEAD'});await assert.rejects(s.updater.update(),/pas encore de commit/);assert.ok(!s.calls.some(c=>['fetch','merge','reset'].includes(c.args[0])));
+});

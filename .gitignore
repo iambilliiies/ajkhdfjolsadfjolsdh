@@ -1,4 +1,7 @@
 node_modules/
+.npm/
+*.zip
+.protect-backups/
 config.json
 data/prefixes.json
 data/suggestions.json
