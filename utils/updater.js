@@ -29,7 +29,11 @@ async function update(client) {
     const git = async args => (await run(runtime.executable, args, { cwd: root, env: runtime.env, timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 })).stdout.trim();
     try {
         await git(['rev-parse', '--is-inside-work-tree']);
-        if (await git(['status', '--porcelain'])) throw new Error('Des modifications locales existent. Enregistre-les avant de mettre à jour.');
+        const localChanges = await git(['status', '--porcelain']);
+        if (localChanges) {
+            const files = localChanges.split('\n').slice(0, 12).map(line => line.trim()).join('\n').replace(/`/g, 'ˋ');
+            throw new Error(`Des modifications locales existent sur l’hébergeur :\n${files}\n\nMise à jour arrêtée pour conserver tes fichiers. Vérifie git status --short dans /home/container avant de les enregistrer ou de les restaurer.`);
+        }
         const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
         if (branch === 'HEAD') throw new Error('Le dépôt doit être sur une branche.');
         let upstream;

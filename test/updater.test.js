@@ -30,7 +30,7 @@ test('updatebot installe en avance rapide et annonce les changements',async()=>{
     assert.ok(s.calls.some(c=>c.args.join(' ')==='merge --ff-only origin/main'));assert.equal(s.published.length,1);
 });
 test('modifications locales protégées et nouvelle tentative possible après erreur',async()=>{
-    const s=setup({dirty:true});await assert.rejects(s.updater.update(),/modifications locales/);await assert.rejects(s.updater.update(),/modifications locales/);
+    const s=setup({dirty:true});await assert.rejects(s.updater.update(),/modifications locales.*\nM index\.js/s);await assert.rejects(s.updater.update(),/modifications locales/);
     assert.ok(!s.calls.some(c=>c.args[0]==='fetch'));
 });
 test('branche sans suivi et historique divergent donnent une erreur sans reset',async()=>{
