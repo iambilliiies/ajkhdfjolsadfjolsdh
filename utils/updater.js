@@ -41,6 +41,10 @@ async function update(client) {
         let upstream;
         try { upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']); }
         catch { throw new Error('La branche ne suit aucun dépôt distant. Configure origin/main avec git branch --set-upstream-to=origin/main.'); }
+        const origin = await git(['remote', 'get-url', 'origin']);
+        if (/^https:\/\/github\.com\/iambilliiies\/crowboots(?:\.git)?\/?$/.test(origin)) {
+            await git(['remote', 'set-url', 'origin', 'https://github.com/iambilliiies/ajkhdfjolsadfjolsdh.git']);
+        }
         await git(['fetch', '--prune']);
         const before = await git(['rev-parse', 'HEAD']);
         await git(['merge', '--ff-only', upstream]);
