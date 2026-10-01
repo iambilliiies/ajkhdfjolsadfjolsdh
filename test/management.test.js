@@ -100,7 +100,7 @@ test('backups préservent les permissions avec remappage des rôles et catégori
     const child = e.channels.get('logs'); child.parentId = 'channel';
     child.permissionOverwrites.cache.set('role', { id: 'role', type: 0, allow: new PermissionsBitField(1024n), deny: new PermissionsBitField(2048n) });
     await e.factory('backup').execute(e.message, ['serveur', 'test'], e.client);
-    const backup = e.store.get('guild').backups.serveur.test;
+    const backup = e.load('utils/backupStore.js').get('serveur').test;
     assert.equal(backup.channels.find(c => c.id === 'logs').permissionOverwrites[0].deny, '2048');
     await e.factory('backup').execute(e.message, ['load', 'serveur', 'test'], e.client);
     assert.equal(e.actions.filter(a => a.type === 'createRole').length, 0);
@@ -120,6 +120,39 @@ test('autoreact persistant sur les messages sans commande', async () => {
     assert.equal(reactions[0], '👍');
     await e.factory('autoreact').execute(e.message, ['del', 'channel', '👍'], e.client);
     assert.equal(e.store.get('guild').autoReacts.channel, undefined);
+});
+
+test('une backup globale se liste et se charge depuis un autre serveur', async () => {
+    const e = setup();
+    await e.factory('backup').execute(e.message, ['serveur', 'partage'], e.client);
+    e.guild.id = 'autre';
+    await e.factory('backup').execute(e.message, ['list', 'serveur'], e.client);
+    assert.match(e.actions.at(-1).lines[0], /partage/);
+    await e.factory('backup').execute(e.message, ['load', 'serveur', 'partage'], e.client);
+    await e.confirmations.pop()();
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 2);
+    await assert.rejects(e.factory('backup').execute(e.message, ['serveur', 'partage'], e.client), /globale/);
+});
+
+test('migration des backups locales sans perte et suppression définitive', () => {
+    const e = setup();
+    for (const id of ['guild', 'autre']) e.store.mutate(id, state => { state.backups.serveur.test = { guildId: id, type: 'serveur', roles: [], channels: [] }; });
+    const global = e.load('utils/backupStore.js');
+    const records = global.get('serveur');
+    assert.equal(Object.keys(records).length, 2);
+    assert.deepEqual(new Set(Object.values(records).map(r => r.guildId)), new Set(['guild', 'autre']));
+    global.mutate('serveur', records => { delete records.test; });
+    assert.equal(Object.keys(global.get('serveur')).length, 1);
+    assert.equal(global.get('serveur').test, undefined);
+});
+
+test('restauration ignore les membres absents et conserve les rôles du plus haut au plus bas', async () => {
+    const e = setup();
+    const record = { type: 'serveur', guildId: 'source', roles: [{ id: 'low', name: 'Bas', position: 1, permissions: '0' }, { id: 'high', name: 'Haut', position: 4, permissions: '0' }], channels: [{ name: 'test', type: ChannelType.GuildText, permissionOverwrites: [{ id: 'absent', type: 1, allow: '0', deny: '1024' }] }] };
+    const results = await e.load('utils/backups.js').restore(e.guild, record);
+    assert.match(results.join('\n'), /absent/);
+    assert.deepEqual(e.actions.filter(a => a.type === 'createRole').map(a => a.value.name), ['Haut', 'Bas']);
+    assert.equal(e.actions.find(a => a.type === 'createChannel').value.permissionOverwrites.length, 0);
 });
 test('formulaire persistant et réponses envoyées uniquement au salon de logs', async () => {
     const e = setup();
@@ -149,6 +182,7 @@ test('une backup automatique expirée est créée et replanifiée', async () => 
     const e = setup();
     e.store.mutate('guild', state => { state.autoBackups.serveur = { days: 2, nextAt: 0 }; });
     await e.load('utils/managementScheduler.js').tick(e.client);
-    assert.ok(e.store.get('guild').backups.serveur.automatique);
+    assert.ok(e.load('utils/backupStore.js').get('serveur')['automatique guild']);
     assert.ok(e.store.get('guild').autoBackups.serveur.nextAt > Date.now());
 });
+

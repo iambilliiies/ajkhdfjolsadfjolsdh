@@ -15,6 +15,8 @@ data/update-announcements.json
 data/update-announcements.json.tmp
 data/management.json
 data/management.json.tmp
+data/backups.json
+data/backups.json.tmp
 data/server-config.json
 data/server-config.json.tmp
 data/moderation-actions.json

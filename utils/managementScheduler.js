@@ -31,7 +31,7 @@ async function tick(client) {
             }
             for (const [kind, schedule] of Object.entries(state.autoBackups || {})) if (schedule.nextAt <= Date.now()) {
                 try {
-                    await require('./backups').create(guild, kind, 'automatique', true);
+                    await require('./backups').create(guild, kind, `automatique ${guild.id}`, true);
                     store.mutate(guildId, current => { if (current.autoBackups[kind]) current.autoBackups[kind].nextAt = Date.now() + schedule.days * 86400000; });
                 } catch (error) {
                     console.error('Backup automatique :', error.message);

@@ -87,15 +87,17 @@ async function execute(name, message, args, client) {
         const action = args[0]?.toLowerCase();
         if (action === 'list') {
             const kind = backups.type(args[1]);
-            return g.list(message, `Backups • ${kind}`, Object.entries(store.get(guild.id).backups[kind]).map(([name, backup]) => `**${name}** • ${g.date(backup.createdAt)}`));
+            return g.list(message, `Backups globales • ${kind}`, Object.entries(require('./backupStore').get(kind)).map(([name, backup]) => `**${name}** • ${backup.guildName || backup.guildId} • ${g.date(backup.createdAt)}`));
         }
         if (['delete', 'load'].includes(action)) {
             const kind = backups.type(args[1]), backupName = backups.name(args.slice(2).join(' '));
-            const records = store.get(guild.id).backups[kind];
+            const records = require('./backupStore').get(kind);
             if (!Object.hasOwn(records, backupName)) throw new Error('Backup introuvable.');
-            if (action === 'delete') return confirm(`Supprimer la backup **${backupName}** ?`, () => store.mutate(guild.id, state => { delete state.backups[kind][backupName]; }));
+            if (action === 'delete') return confirm(`Supprimer la backup globale **${backupName}** ?`, () => require('./backupStore').mutate(kind, records => { delete records[backupName]; }));
             return confirm(`Charger **${backupName}** ? Les rôles/salons ou émojis seront recréés avec de nouveaux IDs, sans supprimer les ressources existantes.`, async () => {
-                await g.list(message, 'Chargement backup', await backups.restore(guild, records[backupName]));
+                const current = require('./backupStore').get(kind)[backupName];
+                if (!current) throw new Error('Backup introuvable.');
+                await g.list(message, 'Chargement backup', await backups.restore(guild, current));
             });
         }
         const kind = backups.type(action), backupName = backups.name(args.slice(1).join(' '));
@@ -105,7 +107,7 @@ async function execute(name, message, args, client) {
         const kind = backups.type(args[0]), days = Number(args[1]);
         if (!Number.isInteger(days) || days < 0 || days > 365) throw new Error('Indique un intervalle de 1 à 365 jours, ou 0 pour désactiver.');
         store.mutate(guild.id, state => { if (!days) delete state.autoBackups[kind]; else state.autoBackups[kind] = { days, nextAt: Date.now() + days * 86400000 }; });
-        return send(days ? `Backup ${kind} automatique tous les ${days} jour(s), enregistrée sous automatique.` : 'Backup automatique désactivée.');
+        return send(days ? `Backup ${kind} automatique tous les ${days} jour(s), enregistrée dans la liste globale sous automatique ${guild.id}.` : 'Backup automatique désactivée.');
     }
     if (name === 'loading') {
         const time = duration(args.shift()), text = args.join(' ');
