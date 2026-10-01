@@ -27,10 +27,8 @@ module.exports = {
                 return component;
             };
             const row = new ActionRowBuilder().addComponents(
-                button('first', `⏮ ${t('Début')}`, ButtonStyle.Secondary, current === 0),
                 button('previous', null, ButtonStyle.Secondary, current === 0, '⬅️'),
                 button('next', null, ButtonStyle.Secondary, current === pages.length - 1, '➡️'),
-                button('last', `${t('Fin')} ⏭`, ButtonStyle.Secondary, current === pages.length - 1),
                 button('close', t('Fermer'), ButtonStyle.Danger)
             );
             const components = [];
@@ -67,10 +65,8 @@ module.exports = {
                     collector.stop('revoked'); return;
                 }
                 const action = interaction.customId.split(':')[1];
-                if (action === 'first') current = 0;
                 if (action === 'previous') current = Math.max(0, current - 1);
                 if (action === 'next') current = Math.min(pages.length - 1, current + 1);
-                if (action === 'last') current = pages.length - 1;
                 if (action === 'groupPrevious') current = Math.max(0, (Math.floor(current / 25) - 1) * 25);
                 if (action === 'groupNext') current = Math.min(pages.length - 1, (Math.floor(current / 25) + 1) * 25);
                 if (action === 'select') {
