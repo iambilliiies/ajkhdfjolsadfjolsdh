@@ -13,7 +13,7 @@ async function confirm(message, text, action, authorize = interaction => setting
             if (finished) return await interaction.deferUpdate();
             finished = true;
             await interaction.update({ content: 'Traitement…', components: [] });
-            if (interaction.customId.endsWith(':yes')) { await action(); await sent.edit({ content: '✅ Action effectuée.', components: [] }); }
+            if (interaction.customId.endsWith(':yes')) { const result = await action(); if (!result?.completionHandled) await sent.edit({ content: '✅ Action effectuée.', components: [] }); }
             else await sent.edit({ content: 'Action annulée.', components: [] });
             collector.stop();
         } catch (error) { collector.stop(); await sent.edit({ content: `❌ ${error.message}`, components: [], allowedMentions: { parse: [] } }).catch(() => {}); }
