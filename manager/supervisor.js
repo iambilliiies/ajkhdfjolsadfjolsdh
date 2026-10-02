@@ -19,8 +19,8 @@ function prepare(source, runtime, record) {
     return folder;
 }
 class Supervisor {
-    constructor(store, source, runtime, notify, spawn = fork, now = Date.now) {
-        Object.assign(this, { store, source, runtime, notify, spawn, now });
+    constructor(store, source, runtime, notify, spawn = fork, now = Date.now, log = console.log) {
+        Object.assign(this, { store, source, runtime, notify, spawn, now, log });
         this.children = new Map(); this.stopping = false; this.busy = false;
     }
     async stop(id) {
@@ -42,19 +42,25 @@ class Supervisor {
         env.PROTECT_MANAGED_INSTANCE = '1';
         const child = this.spawn(path.join(folder, 'index.js'), [], { cwd: folder, env, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
         this.children.set(record.id, child);
+        const label = `Bot client ${record.botId} • location ${record.id.slice(0, 8)}`;
+        this.log(`🟠 ${label} : connexion en cours…`);
+        let ready = false;
         child.on('message', message => {
             if (message?.type !== 'protect:ready') return;
+            if (!ready) { ready = true; this.log(`🟢 ${label} : EN LIGNE sur Discord.`); }
             this.store.mutate(all => { if (all[record.id]?.state === 'active') Object.assign(all[record.id], { lastReadyAt: this.now(), retries: 0 }); });
         });
         const failed = () => {
             if (this.children.get(record.id) !== child) return;
             this.children.delete(record.id);
+            const current = this.store.read()[record.id];
+            this.log(`🔴 ${label} : HORS LIGNE (${this.stopping ? 'arrêt du gestionnaire' : current?.expiresAt <= this.now() ? 'location expirée' : 'processus arrêté'}).`);
             if (this.stopping) return;
             this.store.mutate(all => {
                 const r = all[record.id];
                 if (!r || r.state !== 'active' || r.expiresAt <= this.now()) return;
                 r.retries = (r.retries || 0) + 1; r.retryAt = this.now() + 60000;
-                if (r.retries >= 3) r.state = 'failed';
+                if (r.retries >= 3) { r.state = 'failed'; this.log(`🔴 ${label} : relance suspendue après 3 échecs. Vérifie le token et les intents.`); }
             });
         };
         child.on('error', failed); child.on('exit', failed);
@@ -80,7 +86,7 @@ class Supervisor {
                     }
                 } else if (record.state === 'active' && !this.children.has(record.id) && (!record.retryAt || record.retryAt <= this.now())) {
                     try { this.launch(record); }
-                    catch { this.store.mutate(all => { all[record.id].state = 'failed'; }); }
+                    catch { this.store.mutate(all => { all[record.id].state = 'failed'; }); this.log(`🔴 Bot client ${record.botId} : HORS LIGNE — préparation du lancement impossible.`); }
                 }
             }
         } finally { this.busy = false; }

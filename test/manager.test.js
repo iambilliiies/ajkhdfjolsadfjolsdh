@@ -148,7 +148,8 @@ test('formulaire lié au client et token enregistré sans réapparaître dans le
 test('un vrai processus client démarre avec son environnement filtré et s’arrête à expiration', async t => {
     const e = fixture(t); e.activate();
     fs.writeFileSync(path.join(e.source, 'index.js'), "process.on('disconnect',()=>process.exit(0)); process.send({type:'protect:ready',managed:process.env.PROTECT_MANAGED_INSTANCE,hasToken:Boolean(process.env.DISCORD_TOKEN),hasManagerToken:Boolean(process.env.PROTECT_MANAGER_TOKEN)}); setInterval(()=>{},1000);");
-    const supervisor = new Supervisor(e.store, e.source, e.runtime, async () => {}, undefined, e.now);
+    const logs = [];
+    const supervisor = new Supervisor(e.store, e.source, e.runtime, async () => {}, undefined, e.now, line => logs.push(line));
     t.after(() => supervisor.shutdown());
     await supervisor.tick();
     const child = [...supervisor.children.values()][0];
@@ -158,6 +159,9 @@ test('un vrai processus client démarre avec son environnement filtré et s’ar
         child.once('error', error => { clearTimeout(timer); reject(error); });
     });
     assert.equal(ready.managed, '1'); assert.equal(ready.hasToken, true); assert.equal(ready.hasManagerToken, false);
+    assert.ok(logs.some(line => line.includes('EN LIGNE sur Discord')));
     e.advance(3600001); await supervisor.tick();
     assert.equal(supervisor.children.size, 0);
+    assert.ok(logs.some(line => line.includes('HORS LIGNE (location expirée)')));
+    assert.ok(logs.every(line => !line.includes('CLIENT_TEST_TOKEN')));
 });

@@ -26,17 +26,18 @@ async function main() {
     client.on('interactionCreate', interaction => controller.interaction(interaction).catch(() => console.error('Erreur formulaire gestion.')));
     let timer, exiting = false;
     client.once('clientReady', async () => {
-        console.log(`Protect Gestion connecté : ${client.user.tag}.`);
+        console.log(`🟢 Protect Gestion : EN LIGNE sur Discord (${client.user.tag}).`);
         await supervisor.tick().catch(() => console.error('Erreur de reprise des locations.'));
         timer = setInterval(() => supervisor.tick().catch(() => console.error('Erreur de contrôle des locations.')), 15000);
     });
     const shutdown = async () => {
         if (exiting) return; exiting = true; clearInterval(timer);
-        await supervisor.shutdown(); client.destroy(); process.exit(0);
+        await supervisor.shutdown(); client.destroy(); console.log('🔴 Protect Gestion : HORS LIGNE — arrêté.'); process.exit(0);
     };
     process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
     if (process.send) process.on('disconnect', shutdown);
+    console.log('🟠 Protect Gestion : connexion en cours…');
     await client.login(config.token).catch(() => { client.destroy(); throw new Error('Connexion du gestionnaire impossible. Vérifie son token et Message Content Intent.'); });
 }
-if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+if (require.main === module) main().catch(error => { console.error(`🔴 Protect Gestion : HORS LIGNE — ${error.message}`); process.exitCode = 1; });
 module.exports = main;

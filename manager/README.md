@@ -26,6 +26,8 @@ Le client doit activer **Server Members Intent**, **Message Content Intent** et 
 
 ## Durées, reprise et données
 
+Le terminal affiche la connexion en cours, puis `🟢 Protect Gestion : EN LIGNE sur Discord` après connexion. Chaque bot client affiche aussi son démarrage, sa connexion Discord confirmée et `🔴 HORS LIGNE` lorsqu’il s’arrête, avec la raison (expiration, arrêt du gestionnaire ou arrêt du processus). Les tokens ne sont jamais affichés dans ces lignes.
+
 Un contrôle toutes les 15 secondes arrête les copies arrivées à échéance et tente d’envoyer un MP au client. Les bots actifs reprennent après redémarrage du gestionnaire. À sa fermeture, les processus clients sont arrêtés ; les copies s’arrêtent également si leur connexion au gestionnaire est perdue. Après trois échecs de lancement, la relance automatique est suspendue ; vérifie le token et les intents avant un renouvellement.
 
 Les copies sont dans `manager/runtime/instances/<ID location>/`. Elles ont leurs propres owners, configuration et dossier `data/`. Elles ne reçoivent ni le Git, ni les données, ni les tokens, ni les clés Google/Twitch du Protect principal. Elles utilisent les dépendances installées dans le `node_modules` du projet parent. Elles conservent la version du code copiée à leur création ; leur commande `updatebot` est bloquée pour protéger le dépôt parent. Le Protect principal peut continuer à utiliser `updatebot`.
