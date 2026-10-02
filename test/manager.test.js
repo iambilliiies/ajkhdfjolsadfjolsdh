@@ -204,3 +204,46 @@ test('un vrai processus client démarre avec son environnement filtré et s’ar
     assert.ok(logs.some(line => line.includes('HORS LIGNE (location expirée)')));
     assert.ok(logs.every(line => !line.includes('CLIENT_TEST_TOKEN')));
 });
+
+test('remove arrête le processus, retire la location et conserve les données', async t => {
+    const e = fixture(t), active = e.activate(), kills = [];
+    const supervisor = new Supervisor(e.store, e.source, e.runtime, async () => {}, () => {
+        const child = new EventEmitter(); child.kill = signal => { kills.push(signal); queueMicrotask(() => child.emit('exit', 0)); return true; }; return child;
+    }, e.now, () => {});
+    await supervisor.tick();
+    const folder = path.join(e.runtime, 'instances', active.id);
+    fs.writeFileSync(path.join(folder, 'data/settings.json'), '{"customer":true}');
+    await supervisor.remove(active.id); await supervisor.tick();
+    assert.equal(supervisor.children.size, 0); assert.deepEqual(kills, ['SIGTERM']);
+    assert.equal(e.store.read()[active.id], undefined);
+    assert.equal(fs.readFileSync(e.store.file, 'utf8').includes('tokenCipher'), false);
+    assert.equal(fs.readFileSync(path.join(folder, 'data/settings.json'), 'utf8'), '{"customer":true}');
+    assert.throws(() => e.rentals.renew(active.id, duration('1h')), /introuvable/);
+});
+
+test('!remove exige le propriétaire et sa confirmation avant le retrait', async t => {
+    const e = controllerFixture(t), removed = [];
+    e.controller.supervisor.remove = async recordId => { removed.push(recordId); e.store.mutate(all => { delete all[recordId]; }); };
+    await e.controller.message(e.message(customerId, `!remove ${e.created.id}`));
+    assert.match(e.replies.at(-1).content, /réservée/);
+    await e.controller.message(e.message(ownerId, `!remove <@${customerId}>`));
+    const customId = e.replies.at(-1).components[0].toJSON().components[0].custom_id;
+    assert.equal(removed.length, 0);
+    const interaction = { customId, user: { id: customerId }, isButton: () => true, update: async () => {}, editReply: async () => {}, reply: async () => {} };
+    await e.controller.interaction(interaction); assert.equal(removed.length, 0);
+    await e.controller.interaction({ ...interaction, user: { id: ownerId } });
+    assert.deepEqual(removed, [e.created.id]); assert.equal(e.store.read()[e.created.id], undefined);
+});
+
+test('+remove fonctionne aussi ; annulation et expiration conservent le bot', async t => {
+    const e = controllerFixture(t);
+    e.controller.supervisor.remove = async () => { throw new Error('Retrait non attendu'); };
+    await e.controller.message(e.message(ownerId, `+remove ${e.created.id}`));
+    const buttons = e.replies.at(-1).components[0].toJSON().components;
+    const interaction = { customId: buttons[1].custom_id, user: { id: ownerId }, isButton: () => true, update: async () => {}, reply: async () => {}, editReply: async () => {} };
+    await e.controller.interaction(interaction); assert.ok(e.store.read()[e.created.id]);
+    await e.controller.message(e.message(ownerId, `!remove ${e.created.id}`));
+    interaction.customId = e.replies.at(-1).components[0].toJSON().components[0].custom_id;
+    e.controller.removals.get(interaction.customId.split(':')[3]).expiresAt = Date.now() - 1;
+    await e.controller.interaction(interaction); assert.ok(e.store.read()[e.created.id]);
+});

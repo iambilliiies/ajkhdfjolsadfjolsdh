@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
 const { duration, id } = require('./rentals');
+const { randomUUID } = require('node:crypto');
 const embed = (title, description) => new EmbedBuilder().setColor(0xED1515).setTitle(`Protect • ${title}`).setDescription(description).setFooter({ text: 'Protect Gestion' });
 async function validateToken(token) {
     let response;
@@ -12,17 +13,17 @@ async function validateToken(token) {
 }
 class Controller {
     constructor(client, config, rentals, supervisor, validate = validateToken, forbiddenTokens = []) {
-        Object.assign(this, { client, config, rentals, supervisor, validate, forbiddenTokens }); this.activating = new Set();
+        Object.assign(this, { client, config, rentals, supervisor, validate, forbiddenTokens }); this.activating = new Set(); this.removals = new Map();
     }
     owner(userId) { return userId === this.config.ownerId; }
     async message(message) {
-        const prefix = /^!help(?:\s|$)/i.test(message.content) ? '!' : this.config.prefix;
+        const prefix = /^!(?:help|remove)(?:\s|$)/i.test(message.content) ? '!' : this.config.prefix;
         if (message.author.bot || !message.content.startsWith(prefix)) return;
         const args = message.content.slice(prefix.length).trim().split(/\s+/), command = args.shift()?.toLowerCase();
-        if (!['create', 'mybot', 'renew', 'help'].includes(command)) return;
+        if (!['create', 'mybot', 'renew', 'help', 'remove'].includes(command)) return;
         const reply = payload => message.reply({ ...(typeof payload === 'string' ? { content: payload } : payload), allowedMentions: { parse: [], repliedUser: false } });
         try {
-            if (['create', 'renew'].includes(command) && !this.owner(message.author.id)) throw new Error('Commande réservée au propriétaire du gestionnaire.');
+            if (['create', 'renew', 'remove'].includes(command) && !this.owner(message.author.id)) throw new Error('Commande réservée au propriétaire du gestionnaire.');
             if (command === 'help') {
                 const help = embed('Gestion des bots', 'Commandes disponibles pour tes bots personnels.').addFields(
                     { name: '!help', value: `Affiche ce menu. Disponible aussi avec \`${this.config.prefix}help\`.` },
@@ -31,9 +32,18 @@ class Controller {
                 if (this.owner(message.author.id)) help.addFields(
                     { name: `${this.config.prefix}create @client <durée>`, value: 'Crée une location et envoie au client le formulaire privé pour son token et son owner ID.\nExemple : `'+this.config.prefix+'create @client 30j`' },
                     { name: `${this.config.prefix}renew <ID location ou @client> <durée>`, value: 'Prolonge une location ou relance un bot expiré.\nExemple : `'+this.config.prefix+'renew @client 7j`' },
+                    { name: '!remove <ID location ou @client>', value: 'Après confirmation, arrête le bot et supprime sa location ainsi que son token du gestionnaire. Les données du bot sont conservées sur l’hébergement.' },
                     { name: 'Durées', value: '`30m` • `2h` • `7j` • `30j` — de 1 minute à 365 jours par commande. Les commandes create et renew te sont réservées.' }
                 );
                 return reply({ embeds: [help] });
+            }
+            if (command === 'remove') {
+                if (args.length !== 1) throw new Error('Utilise !remove @client ou !remove <ID location>.');
+                const record = this.rentals.find(args[0]), nonce = randomUUID();
+                for (const [key, value] of this.removals) if (value.expiresAt <= Date.now()) this.removals.delete(key);
+                this.removals.set(nonce, { recordId: record.id, expiresAt: Date.now() + 60000 });
+                return reply({ embeds: [embed('Retirer un bot', `**Client :** <@${record.clientId}>\n**Location :** \`${record.id}\`\n\nConfirmer l’arrêt du bot et la suppression de sa location et de son token du gestionnaire ? Les données du bot resteront sur l’hébergement.\nConfirmation valable une minute.`)],
+                    components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`mgr:remove:${record.id}:${nonce}`).setLabel('Confirmer le retrait').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId(`mgr:remove-cancel:${record.id}:${nonce}`).setLabel('Annuler').setStyle(ButtonStyle.Secondary))] });
             }
             if (command === 'create') {
                 if (args.length !== 2) throw new Error(`Utilise ${this.config.prefix}create @client 30j.`);
@@ -72,6 +82,16 @@ class Controller {
         const [, action, recordId, nonce] = interaction.customId.split(':');
         let locked = false;
         try {
+            if (['remove', 'remove-cancel'].includes(action)) {
+                const confirmation = this.removals.get(nonce);
+                if (!this.owner(interaction.user.id)) throw new Error('Retrait réservé au propriétaire du gestionnaire.');
+                if (!interaction.isButton() || !confirmation || confirmation.recordId !== recordId || confirmation.expiresAt <= Date.now()) throw new Error('Confirmation expirée ou déjà utilisée. Relance !remove.');
+                this.removals.delete(nonce);
+                if (action === 'remove-cancel') return interaction.update({ content: 'Retrait annulé.', embeds: [], components: [] });
+                await interaction.update({ content: 'Arrêt et retrait du bot…', embeds: [], components: [] });
+                await this.supervisor.remove(recordId);
+                return interaction.editReply({ content: '✅ Bot arrêté et location retirée. Son token a été supprimé du gestionnaire.', embeds: [], components: [] });
+            }
             const record = this.rentals.store.read()[recordId];
             if (!record || record.clientId !== interaction.user.id || record.nonce !== nonce || record.state !== 'pending' || record.signupExpiresAt <= Date.now()) throw new Error('Invitation réservée à son client, expirée ou déjà utilisée.');
             if (interaction.isButton() && action === 'setup') {

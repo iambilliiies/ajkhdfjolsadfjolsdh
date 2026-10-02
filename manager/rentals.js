@@ -40,6 +40,7 @@ class Rentals {
         const target = this.find(query);
         this.store.mutate(all => {
             const record = all[target.id];
+            if (record.state === 'removing') throw new Error('Cette location est en cours de retrait.');
             if (!record.tokenCipher) {
                 if (record.signupExpiresAt <= this.now()) throw new Error('Invitation expirée : crée une nouvelle location.');
                 record.durationMs += time;

@@ -1,4 +1,5 @@
 [
+  { "version": "1.10.5", "date": "2026-10-02", "changes": ["Ajout de !remove au gestionnaire : retrait d’une location avec confirmation, arrêt du bot et suppression de son token du gestionnaire."] },
   { "version": "1.10.4", "date": "2026-10-02", "changes": ["Correction des copies clientes : les fichiers de langue français et anglais sont désormais inclus.", "Réparation automatique des fichiers statiques manquants dans les anciennes instances et reprise des locations en échec concernées, en conservant leurs données."] },
   { "version": "1.10.3", "date": "2026-10-02", "changes": ["Correction du démarrage combiné : une erreur du gestionnaire ne ferme plus Protect avec start:both.", "Le gestionnaire n’est pas lancé sans token configuré et un refus du second processus laisse Protect démarrer."] },
   { "version": "1.10.2", "date": "2026-10-02", "changes": ["node index.js lance désormais Protect et le gestionnaire ensemble, sans gestionnaire dans les copies clientes ni doublon avec start:both."] },

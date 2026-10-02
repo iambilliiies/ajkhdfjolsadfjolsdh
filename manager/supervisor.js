@@ -30,6 +30,7 @@ class Supervisor {
     constructor(store, source, runtime, notify, spawn = fork, now = Date.now, log = console.log) {
         Object.assign(this, { store, source, runtime, notify, spawn, now, log });
         this.children = new Map(); this.stopping = false; this.busy = false;
+        this.removing = new Map();
     }
     repairFailedInstances() {
         for (const record of Object.values(this.store.read())) {
@@ -51,6 +52,22 @@ class Supervisor {
             child.once('exit', () => { clearTimeout(timer); resolve(); });
             child.kill('SIGTERM');
         });
+    }
+    remove(id) {
+        if (this.removing.has(id)) return this.removing.get(id);
+        const record = this.store.read()[id];
+        if (!record) return Promise.reject(new Error('Location introuvable ou déjà retirée.'));
+        const task = (async () => {
+            this.store.mutate(all => { all[id].state = 'removing'; });
+            try { await this.stop(id); }
+            catch (error) { this.store.mutate(all => { if (all[id]?.state === 'removing') all[id].state = record.state; }); throw error; }
+            this.store.mutate(all => { delete all[id]; });
+            this.log(`🔴 Location ${id.slice(0, 8)} : retirée, bot arrêté et token supprimé du gestionnaire.`);
+            return record;
+        })();
+        this.removing.set(id, task);
+        task.then(() => { this.removing.delete(id); }, () => { this.removing.delete(id); });
+        return task;
     }
     launch(record) {
         const folder = prepare(this.source, this.runtime, record);
@@ -94,13 +111,14 @@ class Supervisor {
                 if (this.stopping) break;
                 const record = this.store.read()[snapshot.id];
                 if (!record) continue;
+                if (record.state === 'removing') continue;
                 if (!record.tokenCipher) continue;
                 if (record.expiresAt <= this.now()) {
                     this.store.mutate(all => { if (all[record.id]) all[record.id].state = 'expired'; });
                     await this.stop(record.id);
                     const latest = this.store.read()[record.id];
                     if (latest?.expiresAt > this.now()) continue;
-                    if (!latest?.expiryNotified) {
+                    if (latest && !latest.expiryNotified) {
                         this.store.mutate(all => { all[record.id].expiryNotified = true; });
                         notices.push(record);
                     }
