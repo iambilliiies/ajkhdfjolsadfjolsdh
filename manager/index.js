@@ -27,6 +27,7 @@ async function main() {
     let timer, exiting = false;
     client.once('clientReady', async () => {
         console.log(`🟢 Protect Gestion : EN LIGNE sur Discord (${client.user.tag}).`);
+        supervisor.repairFailedInstances();
         await supervisor.tick().catch(() => console.error('Erreur de reprise des locations.'));
         timer = setInterval(() => supervisor.tick().catch(() => console.error('Erreur de contrôle des locations.')), 15000);
     });

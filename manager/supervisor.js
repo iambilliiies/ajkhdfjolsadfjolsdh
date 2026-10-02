@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { fork } = require('node:child_process');
 const sourceFiles = ['index.js', 'package.json', 'package-lock.json'];
+const dataAssets = ['data/changelogs.json', 'data/lang/fr.json', 'data/lang/en.json'];
 function prepare(source, runtime, record) {
     if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(record.id) || !/^\d{15,22}$/.test(record.ownerId)) throw new Error('Identité de location invalide.');
     const folder = path.join(runtime, 'instances', record.id);
@@ -10,10 +11,17 @@ function prepare(source, runtime, record) {
     if (!fs.existsSync(path.join(folder, '.source-ready'))) {
         for (const file of sourceFiles) fs.copyFileSync(path.join(source, file), path.join(folder, file));
         for (const dir of ['commands', 'events', 'utils']) fs.cpSync(path.join(source, dir), path.join(folder, dir), { recursive: true, dereference: false });
-        fs.mkdirSync(path.join(folder, 'data'), { recursive: true, mode: 0o700 });
-        fs.copyFileSync(path.join(source, 'data/changelogs.json'), path.join(folder, 'data/changelogs.json'));
-        fs.writeFileSync(path.join(folder, '.source-ready'), '1', { mode: 0o600 });
     }
+    // Répare aussi les anciennes copies déjà marquées comme prêtes.
+    // Seuls les fichiers statiques sont copiés, jamais les données du propriétaire.
+    for (const asset of dataAssets) {
+        const target = path.join(folder, asset);
+        if (!fs.existsSync(target)) {
+            fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+            fs.copyFileSync(path.join(source, asset), target);
+        }
+    }
+    fs.writeFileSync(path.join(folder, '.source-ready'), '1', { mode: 0o600 });
     const config = { token: '', defaultPrefix: '+', owners: [record.ownerId], supportInvite: 'https://discord.gg/KX5bGypTVh' };
     fs.writeFileSync(path.join(folder, 'config.json'), JSON.stringify(config, null, 2), { mode: 0o600 });
     return folder;
@@ -22,6 +30,18 @@ class Supervisor {
     constructor(store, source, runtime, notify, spawn = fork, now = Date.now, log = console.log) {
         Object.assign(this, { store, source, runtime, notify, spawn, now, log });
         this.children = new Map(); this.stopping = false; this.busy = false;
+    }
+    repairFailedInstances() {
+        for (const record of Object.values(this.store.read())) {
+            if (record.state !== 'failed' || !record.tokenCipher || record.expiresAt <= this.now() || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(record.id)) continue;
+            const folder = path.join(this.runtime, 'instances', record.id);
+            if (!fs.existsSync(path.join(folder, 'index.js')) || dataAssets.every(asset => fs.existsSync(path.join(folder, asset)))) continue;
+            try {
+                prepare(this.source, this.runtime, record);
+                this.store.mutate(all => { Object.assign(all[record.id], { state: 'active', retries: 0 }); delete all[record.id].retryAt; });
+                this.log(`✅ Bot client ${record.botId} : fichiers de langue restaurés, relance autorisée.`);
+            } catch { this.log(`🔴 Bot client ${record.botId} : réparation des fichiers statiques impossible.`); }
+        }
     }
     async stop(id) {
         const child = this.children.get(id);

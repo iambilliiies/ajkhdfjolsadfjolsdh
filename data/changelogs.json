@@ -1,4 +1,5 @@
 [
+  { "version": "1.10.4", "date": "2026-10-02", "changes": ["Correction des copies clientes : les fichiers de langue français et anglais sont désormais inclus.", "Réparation automatique des fichiers statiques manquants dans les anciennes instances et reprise des locations en échec concernées, en conservant leurs données."] },
   { "version": "1.10.3", "date": "2026-10-02", "changes": ["Correction du démarrage combiné : une erreur du gestionnaire ne ferme plus Protect avec start:both.", "Le gestionnaire n’est pas lancé sans token configuré et un refus du second processus laisse Protect démarrer."] },
   { "version": "1.10.2", "date": "2026-10-02", "changes": ["node index.js lance désormais Protect et le gestionnaire ensemble, sans gestionnaire dans les copies clientes ni doublon avec start:both."] },
   { "version": "1.10.1", "date": "2026-10-02", "changes": ["Ajout de !help en embed au gestionnaire et des statuts de connexion dans le terminal pour le gestionnaire et ses bots clients."] },

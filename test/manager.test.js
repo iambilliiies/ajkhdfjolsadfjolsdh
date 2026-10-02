@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { EventEmitter } = require('node:events');
+const { spawnSync } = require('node:child_process');
 const Storage = require('../manager/storage');
 const { Rentals, duration } = require('../manager/rentals');
 const { Supervisor, prepare } = require('../manager/supervisor');
@@ -15,6 +16,9 @@ function fixture(t, max = 10) {
     for (const file of ['index.js', 'package.json', 'package-lock.json']) fs.writeFileSync(path.join(source, file), file === 'index.js' ? '// source' : '{}');
     for (const dir of ['commands', 'events', 'utils', 'data', 'manager', '.git']) fs.mkdirSync(path.join(source, dir));
     fs.writeFileSync(path.join(source, 'data/changelogs.json'), '[]');
+    fs.mkdirSync(path.join(source, 'data/lang'));
+    fs.writeFileSync(path.join(source, 'data/lang/fr.json'), '{}');
+    fs.writeFileSync(path.join(source, 'data/lang/en.json'), '{}');
     fs.writeFileSync(path.join(source, 'data/settings.json'), '{"private":true}');
     fs.writeFileSync(path.join(source, 'config.json'), '{"token":"ROOT_SECRET"}');
     fs.writeFileSync(path.join(source, 'manager/config.json'), '{"token":"MANAGER_SECRET"}');
@@ -56,12 +60,47 @@ test('une copie cliente exclut le Git, les données et tokens du propriétaire',
     assert.equal(fs.existsSync(path.join(folder, '.git')), false);
     assert.equal(fs.existsSync(path.join(folder, 'manager')), false);
     assert.equal(fs.existsSync(path.join(folder, 'data/settings.json')), false);
+    assert.equal(fs.existsSync(path.join(folder, 'data/lang/fr.json')), true);
+    assert.equal(fs.existsSync(path.join(folder, 'data/lang/en.json')), true);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(folder, 'config.json'))).owners, [ownerId]);
     assert.equal(fs.readFileSync(path.join(folder, 'config.json'), 'utf8').includes('TOKEN'), false);
     fs.writeFileSync(path.join(folder, 'data/settings.json'), '{"customer":true}');
     prepare(e.source, e.runtime, active);
     assert.equal(fs.readFileSync(path.join(folder, 'data/settings.json'), 'utf8'), '{"customer":true}');
     assert.throws(() => prepare(e.source, e.runtime, { ...active, id: '../../outside' }), /invalide/);
+});
+
+test('ancienne instance marquée prête : langues manquantes restaurées et données client conservées', t => {
+    const e = fixture(t), active = e.activate(), folder = prepare(e.source, e.runtime, active);
+    fs.rmSync(path.join(folder, 'data/lang'), { recursive: true });
+    fs.writeFileSync(path.join(folder, 'data/settings.json'), '{"client":true}');
+    e.store.mutate(all => { all[active.id].state = 'failed'; all[active.id].retries = 3; });
+    const supervisor = new Supervisor(e.store, e.source, e.runtime, async () => {}, undefined, e.now, () => {});
+    supervisor.repairFailedInstances();
+    assert.equal(fs.existsSync(path.join(folder, 'data/lang/fr.json')), true);
+    assert.equal(fs.existsSync(path.join(folder, 'data/lang/en.json')), true);
+    assert.equal(fs.readFileSync(path.join(folder, 'data/settings.json'), 'utf8'), '{"client":true}');
+    assert.equal(e.store.read()[active.id].state, 'active');
+    assert.equal(e.store.read()[active.id].retries, 0);
+});
+
+test('une copie de la vraie source charge ses commandes et exécute calc sans fichiers privés du parent', t => {
+    const e = fixture(t), active = e.activate(), source = path.resolve(__dirname, '..');
+    const folder = prepare(source, e.runtime, active);
+    const script = `
+        const { Collection } = require('discord.js');
+        const client = { commands: new Collection(), ownerCommands: new Collection() };
+        require('./utils/loadCommands')(client, require('node:path').join(process.cwd(), 'commands'));
+        let result;
+        client.commands.get('calc').execute({ guild: null, reply: async payload => { result = payload.embeds[0].toJSON().description; } }, ['2+2'], client)
+            .then(() => console.log(JSON.stringify({ ping: client.commands.has('ping'), help: client.commands.has('help'), calc: result })))
+            .catch(() => process.exit(1));
+    `;
+    const child = spawnSync(process.execPath, ['-e', script], { cwd: folder, env: { ...process.env, NODE_PATH: path.join(source, 'node_modules'), PROTECT_MANAGED_INSTANCE: '1' }, encoding: 'utf8', timeout: 10000 });
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(child.stderr, '');
+    const result = JSON.parse(child.stdout.trim().split('\n').at(-1));
+    assert.equal(result.ping, true); assert.equal(result.help, true); assert.match(result.calc, /Résultat :\*\* 4/);
 });
 test('superviseur : un lancement, arrêt à expiration, notification unique et reprise après renouvellement', async t => {
     const e = fixture(t), active = e.activate(), children = [], notices = [];
