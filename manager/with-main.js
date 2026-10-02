@@ -1,7 +1,7 @@
 const { fork } = require('node:child_process');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
-const children = ['index.js', 'manager/index.js'].map(file => fork(path.join(root, file), [], { cwd: root, windowsHide: true, stdio: 'inherit' }));
+const children = ['index.js', 'manager/index.js'].map(file => fork(path.join(root, file), [], { cwd: root, env: { ...process.env, ...(file === 'index.js' ? { PROTECT_MANAGER_EXTERNAL: '1' } : {}) }, windowsHide: true, stdio: 'inherit' }));
 let ending = false;
 function stop(code = 0) {
     if (ending) return; ending = true;

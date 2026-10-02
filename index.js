@@ -164,6 +164,8 @@ if (!token) {
     process.exit(1);
 }
 
+require('./utils/startManager')(__dirname, client);
+
 client.login(token).catch(error => {
     console.error("❌ Connexion à Discord impossible :", error.message);
     process.exitCode = 1;
