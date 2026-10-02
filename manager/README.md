@@ -11,6 +11,8 @@ Ce bot Discord séparé crée des locations de bots personnels avec une copie du
 
 Le démarrage alternatif **`node manager/with-main.js`** ou **`npm run start:both`** reste disponible et ne lance pas de gestionnaire en double. Le `config.json` principal conserve le token de Protect ; `manager/config.json` contient celui du gestionnaire. Si le gestionnaire ne peut pas se connecter, son erreur est affichée dans le terminal et Protect principal continue. Les copies clientes ne lancent jamais de gestionnaire. Aucun bot n’est lancé automatiquement depuis Codex : ces commandes sont à exécuter sur ton hébergement.
 
+Sans token gestionnaire ou avec un JSON invalide, le démarrage automatique affiche le problème et garde Protect seul, sans créer de second processus. Si l’hébergement refuse la création du processus, Protect continue également. Une limite de RAM ou de processus imposée par l’hébergeur reste à vérifier dans sa console avant d’activer plusieurs bots.
+
 Alternativement, `PROTECT_MANAGER_TOKEN` et `PROTECT_MANAGER_OWNER` remplacent le token et l’owner de la configuration. Ne mets pas le token du gestionnaire dans `DISCORD_TOKEN` : cette variable reste réservée au Protect principal lorsque tu lances les deux.
 
 ## Commandes du gestionnaire

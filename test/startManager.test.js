@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const start = require('../utils/startManager');
-function setup(env = {}) {
+function setup(env = { PROTECT_MANAGER_TOKEN: 'MANAGER_TEST_TOKEN' }) {
     const host = new EventEmitter(), child = new EventEmitter(), calls = [], logs = [];
     host.env = env; host.exit = () => {};
     child.exitCode = null; child.signalCode = null;
@@ -28,4 +28,18 @@ test('arrêter le processus principal arrête aussi son gestionnaire', () => {
     const e = setup(); start('/protect', e.client, e.options);
     e.host.emit('SIGTERM');
     assert.ok(e.calls.includes('destroy')); assert.ok(e.calls.includes('SIGTERM'));
+});
+
+test('sans token gestionnaire, aucun second processus ni arrêt de Protect', () => {
+    const e = setup({});
+    assert.equal(start('/dossier-inexistant-protect', e.client, e.options), null);
+    assert.equal(e.calls.length, 0);
+    assert.ok(e.logs[0].includes('Protect continue seul'));
+});
+
+test('hébergement refusant un second processus : Protect reste lancé', () => {
+    const e = setup(); e.options.spawn = () => { throw new Error('EAGAIN'); };
+    assert.equal(start('/protect', e.client, e.options), null);
+    assert.equal(e.calls.includes('destroy'), false);
+    assert.ok(e.logs.at(-1).includes('Protect continue'));
 });
