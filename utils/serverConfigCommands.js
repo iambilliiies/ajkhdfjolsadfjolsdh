@@ -15,6 +15,13 @@ async function execute(name,message,args,client,ownerOnly=false) {
  const form=(title,fields,action)=>ui.form(message,title,fields,action,ownerOnly ? interaction=>require('./settings').isOwner(interaction.user.id) : tools.authorize(message));
  const field=(id,label,value,required=false)=>({id,label,value:value == null ? '' : String(value),required});
  const confirm=(text,action)=>ui.confirm(message,text,action,tools.authorize(message));
+ if(name==='close' && require('./modmail').ticketForChannel(guild.id,message.channel.id)) {
+  tools.guard(message);
+  return confirm('Fermer ce modmail, supprimer son salon et prévenir le membre en MP ?',async()=>{
+   await require('./modmail').close(guild,message.channel.id,client,message.author.id,args.join(' ')||'Fermeture par l’équipe');
+   return {completionHandled:true};
+  });
+ }
  if (['claim','rename','add','close'].includes(name) || name==='del' && args[0]!=='perm') {
   const ticket=config.openTickets[message.channel.id];
   if (!ticket || !interactions.ticketAccess(guild,message.author.id,message.member,ticket,name==='claim')) throw new Error('Ticket introuvable ou accès refusé.');

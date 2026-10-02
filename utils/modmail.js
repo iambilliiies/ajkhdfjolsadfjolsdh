@@ -4,6 +4,37 @@ const configStore = require('./serverConfigStore');
 const settings = require('./settings');
 const g = require('./general');
 const opening = new Map();
+const closing = new Map();
+function ticketForChannel(guildId, channelId) {
+    return Object.entries(store.get(guildId).tickets).find(([, record]) => record.channelId === channelId && !record.closed);
+}
+function close(guild, channelId, client, actorId, reason = 'Fermeture par l’équipe') {
+    const key = `${guild.id}:${channelId}`;
+    if (closing.has(key)) return closing.get(key);
+    const task = (async () => {
+        const entry = ticketForChannel(guild.id, channelId);
+        if (!entry) throw new Error('Ticket modmail introuvable ou déjà fermé.');
+        const [userId, record] = entry;
+        const channel = await guild.channels.fetch(channelId);
+        if (!channel) throw new Error('Salon modmail introuvable.');
+        await channel.delete(`Modmail fermé par ${actorId} : ${String(reason).slice(0, 350)}`);
+        store.mutate(guild.id, state => {
+            if (state.tickets[userId]?.channelId === channelId) Object.assign(state.tickets[userId], { closed: true, closedAt: Date.now(), closedBy: actorId, closeReason: String(reason).slice(0, 1000) });
+        });
+        let notified = false;
+        if (settings.read().dmEnabled) {
+            try {
+                const user = await client.users.fetch(record.userId);
+                await user.send({ embeds: [g.embed('🔒 Modmail fermé', `Ton ticket sur **${guild.name}** a été fermé par l’équipe.\n\n**Raison :** ${String(reason).slice(0, 1000)}\n\nTu peux envoyer un nouveau MP pour ouvrir un nouveau ticket si le modmail est activé.`)], allowedMentions: { parse: [] } });
+                notified = true;
+            } catch (error) { console.error(`Notification de fermeture modmail ${guild.id}/${userId} :`, error.message); }
+        }
+        return { notified };
+    })();
+    closing.set(key, task);
+    task.then(() => { closing.delete(key); }, () => { closing.delete(key); });
+    return task;
+}
 function open(guild, member, client, openedBy) {
     const key = `${guild.id}:${member.id}`;
     if (opening.has(key)) return opening.get(key);
@@ -12,7 +43,11 @@ function open(guild, member, client, openedBy) {
         if (mailGuild && mailGuild !== guild.id) throw new Error('Le modmail est configuré sur un autre serveur.');
         if (config.categoryId && !config.enabled || !openedBy && !config.enabled) throw new Error('Le modmail est désactivé.');
         if (member.user.bot) throw new Error('Membre humain requis.');
-        const current = store.get(guild.id).tickets[member.id];
+        let current = store.get(guild.id).tickets[member.id];
+        if (current && closing.has(`${guild.id}:${current.channelId}`)) {
+            await closing.get(`${guild.id}:${current.channelId}`);
+            current = store.get(guild.id).tickets[member.id];
+        }
         if (current && !current.closed) {
             const channel = await guild.channels.fetch(current.channelId).catch(error => {
                 if (error.code === 10003) return null;
@@ -80,4 +115,4 @@ async function receive(message) {
         if (settings.read().dmEnabled) await message.reply({ content: '❌ Impossible d’envoyer ton modmail. Vérifie que tu es membre du serveur. Si le problème persiste, un administrateur doit vérifier la catégorie et les permissions du bot.', allowedMentions: { parse: [] } }).catch(() => {});
     }
 }
-module.exports = { open, receive };
+module.exports = { open, receive, close, ticketForChannel };

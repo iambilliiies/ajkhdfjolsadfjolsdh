@@ -55,11 +55,16 @@ async function handle(interaction) {
     if (interaction.isButton() && action === 'modmail-close') {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         if (!tools.authorized(interaction.guild, interaction.user.id, interaction.member)) { await interaction.editReply('Réservé aux administrateurs.'); return true; }
-        const ticket = Object.entries(store.get(interaction.guildId).tickets).find(([, record]) => record.channelId === interaction.channelId && !record.closed);
+        const mail = require('./modmail');
+        const ticket = mail.ticketForChannel(interaction.guildId, interaction.channelId);
         if (!ticket) { await interaction.editReply('Ticket introuvable.'); return true; }
-        store.mutate(interaction.guildId, state => { state.tickets[ticket[0]].closed = true; });
-        await interaction.message.edit({ components: [] });
-        await interaction.editReply('Ticket fermé. Les messages ne seront plus relayés.');
+        try {
+            await interaction.editReply('Fermeture du ticket…');
+            const result = await mail.close(interaction.guild, interaction.channelId, interaction.client || interaction.guild.client, interaction.user.id);
+            await interaction.editReply(result.notified ? 'Ticket fermé et membre prévenu en MP.' : 'Ticket fermé. Le MP n’a pas pu être envoyé ou les MP du bot sont désactivés.').catch(() => {});
+        } catch (error) {
+            await interaction.editReply(`❌ Fermeture impossible : ${error.message}`).catch(() => {});
+        }
         return true;
     }
     return false;

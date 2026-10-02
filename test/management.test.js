@@ -33,6 +33,7 @@ function setup() {
     const channels = new Collection(), messages = new Map();
     function channel(id, name = id) {
         const value = { id, name, guild, type: ChannelType.GuildText, parentId: null, rawPosition: 0, permissionOverwrites: { cache: new Collection() }, isTextBased: () => true, isVoiceBased: () => false, permissionsFor: () => ({ has: () => true }),
+            delete: async () => { actions.push({ type: 'deleteChannel', channelId: id }); channels.delete(id); },
             messages: { fetch: async id => { if (!messages.has(id)) throw new Error('Missing message'); return messages.get(id); } },
             send: async payload => {
                 actions.push({ type: 'send', channelId: id, payload });
@@ -43,7 +44,8 @@ function setup() {
         channels.set(id, value); return value;
     }
     channel('channel'); channel('logs');
-    guild.channels = { cache: channels, fetch: async id => id ? channels.get(id) : channels, create: async value => { actions.push({ type: 'createChannel', value }); return channel(`new${channels.size}`); } };
+    let createdChannelCount = 0;
+    guild.channels = { cache: channels, fetch: async id => id ? channels.get(id) : channels, create: async value => { actions.push({ type: 'createChannel', value }); return channel(`new${++createdChannelCount}`); } };
     const member = { id: userId, guild, user: { id: userId, bot: false }, roles: { cache: roles.clone(), add: async id => { actions.push({ type: 'addRole', id }); member.roles.cache.set(id, roles.get(id)); }, remove: async id => { actions.push({ type: 'removeRole', id }); member.roles.cache.delete(id); } } };
     members.set(userId, member);
     g.role = async (message, args) => roles.get(args[0]) || [...roles.values()].find(r => r.name === args[0]);
@@ -252,5 +254,57 @@ test('modmail transmet les MP avec une pièce jointe seule et refuse une catégo
     await handler.onMessage(dm);
     assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 1);
     assert.equal(e.store.get('guild').tickets[userId].closed, true);
+});
+
+test('fermeture par bouton : salon supprimé, ticket fermé et MP envoyé une seule fois', async () => {
+    const e = setup(), dm = enableModmail(e), notices = [];
+    e.client.users = { fetch: async () => ({ send: async payload => { notices.push(payload); } }) };
+    const handler = e.load('utils/managementInteractions.js');
+    await handler.onMessage(dm);
+    const channelId = e.store.get('guild').tickets[userId].channelId;
+    const interaction = { customId: 'mg:modmail-close', guild: e.guild, guildId: 'guild', channelId, client: e.client, user: { id: ownerId }, member: e.message.member, isButton: () => true, isModalSubmit: () => false, deferReply: async () => {}, editReply: async () => {} };
+    await handler.handle({ ...interaction, user: { id: userId }, member: { permissions: { has: () => false } } });
+    assert.equal(e.channels.has(channelId), true);
+    assert.equal(notices.length, 0);
+    await Promise.all([handler.handle(interaction), handler.handle(interaction)]);
+    assert.equal(e.channels.has(channelId), false);
+    assert.equal(e.store.get('guild').tickets[userId].closed, true);
+    assert.equal(notices.length, 1);
+    assert.match(notices[0].embeds[0].toJSON().description, /a été fermé/);
+    await handler.onMessage(dm);
+    assert.equal(e.store.get('guild').tickets[userId].closed, false);
+    assert.notEqual(e.store.get('guild').tickets[userId].channelId, channelId);
+});
+
+test('close dans un modmail attend confirmation et transmet la raison en MP', async () => {
+    const e = setup(), dm = enableModmail(e), notices = [];
+    e.client.users = { fetch: async () => ({ send: async p => { notices.push(p); } }) };
+    await e.load('utils/managementInteractions.js').onMessage(dm);
+    const channelId = e.store.get('guild').tickets[userId].channelId;
+    e.message.channel = e.channels.get(channelId);
+    await e.load('utils/serverConfigCommands.js')('close').execute(e.message, ['Demande', 'résolue'], e.client);
+    assert.equal(e.channels.has(channelId), true);
+    const result = await e.confirmations.pop()();
+    assert.equal(result.completionHandled, true);
+    assert.equal(e.channels.has(channelId), false);
+    assert.match(notices[0].embeds[0].toJSON().description, /Demande résolue/);
+});
+
+test('échec de suppression conserve le ticket ouvert ; MP refusé ne bloque pas la fermeture', async () => {
+    const e = setup(), dm = enableModmail(e); let attempts = 0;
+    e.client.users = { fetch: async () => ({ send: async () => { attempts++; throw new Error('MP bloqués'); } }) };
+    await e.load('utils/managementInteractions.js').onMessage(dm);
+    const channelId = e.store.get('guild').tickets[userId].channelId, channel = e.channels.get(channelId), remove = channel.delete;
+    channel.delete = async () => { throw new Error('Permissions insuffisantes'); };
+    const mail = e.load('utils/modmail.js');
+    await assert.rejects(mail.close(e.guild, channelId, e.client, ownerId), /Permissions/);
+    assert.equal(e.store.get('guild').tickets[userId].closed, false);
+    assert.equal(attempts, 0);
+    channel.delete = remove;
+    const result = await mail.close(e.guild, channelId, e.client, ownerId);
+    assert.equal(result.notified, false);
+    assert.equal(e.store.get('guild').tickets[userId].closed, true);
+    assert.equal(e.channels.has(channelId), false);
+    assert.equal(attempts, 1);
 });
 
