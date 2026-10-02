@@ -1,4 +1,5 @@
 [
+  { "version": "1.8.5", "date": "2026-10-01", "changes": ["Ajout de captcha dans Configuration du serveur : panneau de vérification par calcul, rôle vérifié configurable, expiration des défis et désactivation."] },
   { "version": "1.8.4", "date": "2026-10-01", "changes": ["Backups globales accessibles depuis tous les serveurs du bot, avec migration des anciennes sauvegardes.", "Correction du chargement entre serveurs : ordre des rôles, membres absents et émojis des tags de forum."] },
   { "version": "1.8.3", "date": "2026-10-01", "changes": ["Ajout de la commande owner nuke pour recréer un salon textuel avec confirmation et conservation des permissions et de la position."] },
   { "version": "1.8.2", "date": "2026-10-01", "changes": ["Ajout d’un MP en embed 👑 au propriétaire de Protect lorsque le bot rejoint un serveur, avec informations et invitation si disponible."] },

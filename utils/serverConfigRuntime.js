@@ -11,7 +11,8 @@ function template(text, member, guild, args = '') {
 async function welcome(member, leaving = false) {
     const guild = member.guild, config = store.get(guild.id)[leaving ? 'leaves' : 'joins'];
     if (!config.enabled) return;
-    if (!leaving && config.roleId) {
+        const captcha = store.get(guild.id).captcha;
+        if (!leaving && config.roleId && !(captcha?.enabled && captcha.roleId === config.roleId)) {
         try { const role = await guild.roles.fetch(config.roleId); if (require('./serverConfigInteractions').safeRole(role, guild)) await member.roles.add(config.roleId, 'Rôle automatique de bienvenue'); }
         catch (error) { console.error('Rôle de bienvenue :', error.message); }
     }

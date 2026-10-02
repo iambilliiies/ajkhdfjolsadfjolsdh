@@ -5,7 +5,10 @@ let queue = Promise.resolve();
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
-        try { if (await require('../utils/serverConfigInteractions').handle(interaction)) return; }
+        try {
+            if (await require('../utils/captcha').handle(interaction)) return;
+            if (await require('../utils/serverConfigInteractions').handle(interaction)) return;
+        }
         catch (error) {
             console.error('Configuration interactive :', error.message);
             const payload = { content: `❌ ${String(error.message).slice(0, 1500)}`, allowedMentions: { parse: [] } };
