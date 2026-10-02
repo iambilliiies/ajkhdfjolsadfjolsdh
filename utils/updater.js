@@ -23,6 +23,7 @@ function gitRuntime() {
     return { executable, env };
 }
 async function update(client) {
+    if (process.env.PROTECT_MANAGED_INSTANCE === '1') throw new Error('Les mises à jour de cette copie sont gérées par le propriétaire du gestionnaire.');
     if (running) throw new Error('Une mise à jour est déjà en cours.');
     running = true;
     const runtime = gitRuntime();
@@ -60,7 +61,7 @@ async function update(client) {
 function schedule(client) {
     if (client.updateTimer) clearInterval(client.updateTimer);
     client.updateTimer = null;
-    if (require('./settings').read().autoUpdate) {
+    if (process.env.PROTECT_MANAGED_INSTANCE !== '1' && require('./settings').read().autoUpdate) {
         client.updateTimer = setInterval(() => update(client).then(result => console.log('Auto-update :', result)).catch(error => console.error('Auto-update :', error.message)), 3600000);
         client.updateTimer.unref();
     }

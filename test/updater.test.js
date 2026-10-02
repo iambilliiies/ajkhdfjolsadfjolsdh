@@ -15,7 +15,7 @@ function setup(options={}) {
         return{stdout:''};
     };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../utils/updater.js'),'utf8'),{
-        module,__dirname:path.join(__dirname,'../utils'),process:{platform:'win32',env:{USERPROFILE:'C:/Users/Test',PATH:'original'}},setInterval,clearInterval,console,
+        module,__dirname:path.join(__dirname,'../utils'),process:{platform:'win32',env:{USERPROFILE:'C:/Users/Test',PATH:'original',...(options.managed?{PROTECT_MANAGED_INSTANCE:'1'}:{})}},setInterval,clearInterval,console,
         require:name=>name==='node:child_process'?{execFile(){}}:name==='node:util'?{promisify:()=>run}:name==='node:fs'?{existsSync:file=>/git\.exe$|git-remote-https\.exe$/.test(file)}:name==='./updateAnnouncements'?{publish:async client=>published.push(client)}:require(name)
     });
     return{updater:module.exports,calls,published};
@@ -24,6 +24,14 @@ test('updatebot détecte le Git Windows et configure son helper HTTPS',async()=>
     const s=setup();assert.match(await s.updater.update({}),/déjà à jour/);
     assert.ok(s.calls.every(c=>c.executable.endsWith('git.exe')&&c.settings.env.GIT_EXEC_PATH.endsWith(path.join('mingw64','bin'))));
     assert.ok(s.calls.every(c=>c.settings.env.GIT_TERMINAL_PROMPT==='0'));
+});
+
+test('une copie louée ne peut pas mettre à jour le dépôt Git parent',async()=>{
+    const s=setup({managed:true});
+    await assert.rejects(s.updater.update(),/gérées par le propriétaire/);
+    assert.equal(s.calls.length,0);
+    const client={};s.updater.schedule(client);
+    assert.equal(client.updateTimer,null);
 });
 test('updatebot installe en avance rapide et annonce les changements',async()=>{
     const s=setup({changed:true});assert.match(await s.updater.update({}),/origin\/main.*bbbbbbb/);

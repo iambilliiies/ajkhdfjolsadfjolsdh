@@ -1,4 +1,6 @@
 node_modules/
+manager/config.json
+manager/runtime/
 .npm/
 *.zip
 .protect-backups/

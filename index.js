@@ -44,6 +44,9 @@ const client = new Client({
 // ==========================================
 
 client.commands = new Collection();
+if (process.env.PROTECT_MANAGED_INSTANCE === '1') {
+    process.on('disconnect', () => { client.destroy(); process.exit(0); });
+}
 client.ownerCommands = new Collection();
 
 // ==========================================

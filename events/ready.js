@@ -10,6 +10,7 @@ module.exports = {
         console.log("==========================================");
         console.log("✅ Bot connecté avec succès !");
         console.log(`🤖 Bot : ${client.user.tag}`);
+        if (process.send && process.connected) process.send({ type: 'protect:ready', botId: client.user.id }, () => {});
         console.log(`🆔 ID : ${client.user.id}`);
         console.log(`🌐 Serveurs : ${client.guilds.cache.size}`);
         console.log(`👥 Utilisateurs : ${client.users.cache.size}`);
