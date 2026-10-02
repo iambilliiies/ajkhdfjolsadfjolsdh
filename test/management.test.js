@@ -186,3 +186,71 @@ test('une backup automatique expirée est créée et replanifiée', async () => 
     assert.ok(e.store.get('guild').autoBackups.serveur.nextAt > Date.now());
 });
 
+function enableModmail(e) {
+    e.channels.get('logs').type = ChannelType.GuildCategory;
+    e.load('utils/serverConfigStore.js').mutate('guild', (state, all) => {
+        state.modmail = { enabled: true, categoryId: 'logs' }; all.modmailGuildId = 'guild';
+    });
+    return { ...e.message, guild: null, author: { id: userId, tag: 'Alice', bot: false }, content: 'Bonjour le support', attachments: new Collection() };
+}
+
+test('modmail on/off configure la réception et refuse une catégorie sans permission de gestion', async () => {
+    const e = setup(); e.channels.get('logs').type = ChannelType.GuildCategory;
+    const command = e.load('utils/serverConfigCommands.js')('modmail'), config = e.load('utils/serverConfigStore.js');
+    await command.execute(e.message, ['on', 'logs'], e.client);
+    assert.equal(config.read().modmailGuildId, 'guild');
+    assert.equal(config.get('guild').modmail.enabled, true);
+    await command.execute(e.message, ['off'], e.client);
+    assert.equal(config.get('guild').modmail.enabled, false);
+    assert.equal(config.read().modmailGuildId, null);
+    e.channels.get('logs').permissionsFor = member => ({ has: () => member !== e.guild.members.me });
+    await assert.rejects(command.execute(e.message, ['on', 'logs'], e.client), /gérer les salons/);
+    assert.equal(config.get('guild').modmail.enabled, false);
+});
+
+test('le premier MP ouvre un modmail privé et transmet le message, puis réutilise le ticket', async () => {
+    const e = setup(), dm = enableModmail(e), handler = e.load('utils/managementInteractions.js');
+    await handler.onMessage(dm);
+    const ticket = e.store.get('guild').tickets[userId];
+    assert.ok(ticket);
+    const create = e.actions.find(a => a.type === 'createChannel').value;
+    assert.equal(create.parent, 'logs');
+    assert.equal(create.permissionOverwrites[0].id, 'guild');
+    assert.ok(create.permissionOverwrites[0].deny.includes(PermissionsBitField.Flags.ViewChannel));
+    assert.equal(e.actions.filter(a => a.type === 'send').at(-1).payload.embeds[0].toJSON().description, dm.content);
+    await handler.onMessage({ ...dm, content: 'Deuxième message' });
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 1);
+});
+
+test('MP simultanés : un seul ticket ; fermeture et salon supprimé autorisent une réouverture', async () => {
+    const e = setup(), dm = enableModmail(e), handler = e.load('utils/managementInteractions.js');
+    await Promise.all([handler.onMessage(dm), handler.onMessage({ ...dm, content: 'Suite' })]);
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 1);
+    e.store.mutate('guild', s => { s.tickets[userId].closed = true; });
+    await handler.onMessage(dm);
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 2);
+    e.channels.delete(e.store.get('guild').tickets[userId].channelId);
+    await handler.onMessage(dm);
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 3);
+});
+
+test('modmail désactivé, utilisateur extérieur et commande en MP ne créent aucun salon', async () => {
+    const e = setup(), dm = enableModmail(e), handler = e.load('utils/managementInteractions.js');
+    await handler.onMessage({ ...dm, content: '+ping' });
+    await handler.onMessage({ ...dm, author: { id: 'extérieur', bot: false } });
+    e.load('utils/serverConfigStore.js').mutate('guild', s => { s.modmail.enabled = false; });
+    await handler.onMessage(dm);
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 0);
+});
+
+test('modmail transmet les MP avec une pièce jointe seule et refuse une catégorie supprimée', async () => {
+    const e = setup(), dm = enableModmail(e), handler = e.load('utils/managementInteractions.js');
+    await handler.onMessage({ ...dm, content: '', attachments: new Collection([['file', { url: 'https://cdn.discordapp.com/test.png' }]]) });
+    assert.match(e.actions.filter(a => a.type === 'send').at(-1).payload.embeds[0].toJSON().description, /test.png/);
+    e.store.mutate('guild', s => { s.tickets[userId].closed = true; });
+    e.channels.delete('logs');
+    await handler.onMessage(dm);
+    assert.equal(e.actions.filter(a => a.type === 'createChannel').length, 1);
+    assert.equal(e.store.get('guild').tickets[userId].closed, true);
+});
+

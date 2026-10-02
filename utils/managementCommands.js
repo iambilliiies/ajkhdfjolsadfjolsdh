@@ -247,13 +247,8 @@ async function execute(name, message, args, client) {
         if (!args.length) throw new Error('Utilise openmodmail <membre>.');
         const member = await g.member(message, args);
         if (!member || member.user.bot) throw new Error('Membre humain introuvable.');
-        const current = store.get(guild.id).tickets[member.id];
-        if (current && !current.closed && await guild.channels.fetch(current.channelId).catch(() => null)) return send(`Un ticket existe déjà : <#${current.channelId}>.`);
-        const channel = await guild.channels.create({ name: `modmail-${member.id}`, type: ChannelType.GuildText, parent: require('./serverConfigStore').get(guild.id).modmail.categoryId, permissionOverwrites: [{ id: guild.id, deny: [P.ViewChannel] }, { id: client.user.id, allow: [P.ViewChannel, P.SendMessages, P.EmbedLinks] }], reason: `Modmail par ${message.author.id}` });
-        try {
-            store.mutate(guild.id, state => { state.tickets[member.id] = { userId: member.id, channelId: channel.id, closed: false }; });
-            await channel.send({ embeds: [g.embed('Modmail ouvert', `Membre : <@${member.id}>\nAucune notification envoyée. Les messages des administrateurs dans ce ticket seront relayés en MP au membre.`)], components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('mg:modmail-close').setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger))], allowedMentions: { parse: [] } });
-        } catch (error) { await channel.delete('Annulation modmail').catch(() => {}); store.mutate(guild.id, state => { delete state.tickets[member.id]; }); throw error; }
+        const { channel, created } = await require('./modmail').open(guild, member, client, message.author.id);
+        if (!created) return send(`Un ticket existe déjà : <#${channel.id}>.`);
         return send(`Ticket ouvert : <#${channel.id}>. Aucun MP envoyé au membre.`);
     }
     if (name === 'button') {

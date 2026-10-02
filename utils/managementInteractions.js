@@ -67,18 +67,7 @@ async function handle(interaction) {
 async function onMessage(message) {
     if (message.author.bot) return;
     if (!message.guild) {
-        if (settings.blacklisted(message.author.id)) return;
-        const mailGuild = require('./serverConfigStore').read().modmailGuildId;
-        const tickets = Object.entries(store.read()).filter(([guildId]) => { const config = require('./serverConfigStore').get(guildId).modmail; return (!mailGuild || guildId === mailGuild) && (!config.categoryId || config.enabled); }).flatMap(([guildId, state]) => Object.entries(state.tickets || {}).filter(([userId, record]) => userId === message.author.id && !record.closed).map(([, record]) => ({ ...record, guildId })));
-        if (!tickets.length || message.content.startsWith(settings.prefix())) return;
-        let target = tickets.length === 1 ? tickets[0] : null, text = message.content;
-        const selector = text.match(/^\[(\d+)\]\s*([\s\S]*)$/);
-        if (selector) { target = tickets.find(ticket => ticket.guildId === selector[1]); text = selector[2]; }
-        if (!target) { await message.reply(`Plusieurs tickets sont ouverts. Commence ta réponse par [ID du serveur] : ${tickets.map(t => `[${t.guildId}]`).join(', ')}`); return; }
-        if (!text) return;
-        const channel = await message.client.channels.fetch(target.channelId);
-        await channel.send({ embeds: [g.embed(`📩 ${message.author.tag}`, text)], allowedMentions: { parse: [] } });
-        return;
+        return require('./modmail').receive(message);
     }
     const state = store.get(message.guild.id);
     for (const reaction of state.autoReacts[message.channel.id] || []) {
