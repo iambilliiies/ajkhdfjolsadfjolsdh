@@ -6,6 +6,7 @@ module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
         try {
+            if (await require('../utils/slashGeneral').handle(interaction)) return;
             if (await require('../utils/captcha').handle(interaction)) return;
             if (await require('../utils/serverConfigInteractions').handle(interaction)) return;
         }

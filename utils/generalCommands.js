@@ -163,7 +163,7 @@ async function execute(name, message, args, client) {
             latest[sent.id] = record;
             g.writeSuggestions(latest);
         } catch (error) { await sent.delete().catch(() => {}); throw error; }
-        if (channel.id !== message.channel.id) return send('💡 Suggestion publiée', `[Voir la suggestion](${sent.url})`);
+        if (channel.id !== message.channel.id || message.isSlash) return send('💡 Suggestion publiée', `[Voir la suggestion](${sent.url})`);
         return;
     }
     if (name === 'lb') {
