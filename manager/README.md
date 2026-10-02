@@ -18,7 +18,7 @@ Alternativement, `PROTECT_MANAGER_TOKEN` et `PROTECT_MANAGER_OWNER` remplacent l
 - **`+create @client 30j`** : réservé uniquement à l’ID propriétaire du gestionnaire. Envoie au client un MP avec un bouton de configuration. Il peut fournir le token de **son bot Discord** et l’owner ID dans un formulaire, sans publier son token dans un message. Le formulaire est réservé au client, utilisable une fois et expire après 24 heures. La durée commence après validation et lancement, pas à l’envoi de l’invitation.
 - **`+mybot`** : montre les bots du client, leurs IDs de location, leur état, les échéances et les invitations avec commandes slash. Le propriétaire du gestionnaire peut voir toutes les locations et filtrer avec `+mybot @client` ou `+mybot <ID location>`. Aucun token n’est affiché.
 - **`+renew <ID location> 30j`** : réservé au propriétaire du gestionnaire. Ajoute une durée à une location active. Pour une location expirée, repart de maintenant et relance le bot avec ses données conservées. `+renew @client 30j` fonctionne si ce client ne possède qu’une location. Une invitation encore en attente gagne du temps de location ; une invitation expirée doit être recréée.
-- **`+help`** : affiche les commandes du gestionnaire.
+- **`!help`** ou **`+help`** : affiche le menu en embed du gestionnaire. Les commandes create et renew sont affichées uniquement à son propriétaire. Le préfixe des autres commandes reste celui de la configuration (`+` par défaut).
 
 Durées : `30m`, `2h`, `7j`, `30j`, `365j` (minimum une minute ; maximum 365 jours par commande).
 

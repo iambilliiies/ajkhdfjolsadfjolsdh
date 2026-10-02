@@ -110,6 +110,19 @@ test('create et renew réservés au gestionnaire, mybot limité au client', asyn
     assert.equal(JSON.stringify(e.replies.at(-1)).includes('CLIENT_TEST_TOKEN'), false);
     assert.ok(e.replies.at(-1).embeds.length);
 });
+
+test('help du gestionnaire en embed avec !help et +help, commandes owner visibles seulement au propriétaire', async t => {
+    const e = controllerFixture(t);
+    await e.controller.message(e.message(customerId, '!help'));
+    const customer = e.replies.at(-1).embeds[0].toJSON();
+    assert.ok(customer.fields.some(f => f.name === '+mybot'));
+    assert.ok(customer.fields.every(f => !f.name.includes('create') && !f.name.includes('renew')));
+    await e.controller.message(e.message(ownerId, '+help'));
+    const owner = e.replies.at(-1).embeds[0].toJSON();
+    assert.ok(owner.fields.some(f => f.name.includes('create')));
+    assert.ok(owner.fields.some(f => f.name.includes('renew')));
+    assert.equal(owner.footer.text, 'Protect Gestion');
+});
 test('create envoie un formulaire privé et annule la location si les MP sont bloqués', async t => {
     const e = controllerFixture(t);
     await e.controller.message(e.message(ownerId, `+create <@${customerId}> 30j`));

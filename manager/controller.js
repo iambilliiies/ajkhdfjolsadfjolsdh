@@ -16,13 +16,25 @@ class Controller {
     }
     owner(userId) { return userId === this.config.ownerId; }
     async message(message) {
-        if (message.author.bot || !message.content.startsWith(this.config.prefix)) return;
-        const args = message.content.slice(this.config.prefix.length).trim().split(/\s+/), command = args.shift()?.toLowerCase();
+        const prefix = /^!help(?:\s|$)/i.test(message.content) ? '!' : this.config.prefix;
+        if (message.author.bot || !message.content.startsWith(prefix)) return;
+        const args = message.content.slice(prefix.length).trim().split(/\s+/), command = args.shift()?.toLowerCase();
         if (!['create', 'mybot', 'renew', 'help'].includes(command)) return;
         const reply = payload => message.reply({ ...(typeof payload === 'string' ? { content: payload } : payload), allowedMentions: { parse: [], repliedUser: false } });
         try {
             if (['create', 'renew'].includes(command) && !this.owner(message.author.id)) throw new Error('Commande réservée au propriétaire du gestionnaire.');
-            if (command === 'help') return reply({ embeds: [embed('Commandes', `${this.config.prefix}mybot : tes bots et leurs échéances.\n\nPropriétaire uniquement :\n${this.config.prefix}create @client 30j\n${this.config.prefix}renew <ID location ou @client> 30j`)] });
+            if (command === 'help') {
+                const help = embed('Gestion des bots', 'Commandes disponibles pour tes bots personnels.').addFields(
+                    { name: '!help', value: `Affiche ce menu. Disponible aussi avec \`${this.config.prefix}help\`.` },
+                    { name: `${this.config.prefix}mybot`, value: 'Affiche tes bots, leur état, leur durée restante et leur lien d’invitation.' }
+                );
+                if (this.owner(message.author.id)) help.addFields(
+                    { name: `${this.config.prefix}create @client <durée>`, value: 'Crée une location et envoie au client le formulaire privé pour son token et son owner ID.\nExemple : `'+this.config.prefix+'create @client 30j`' },
+                    { name: `${this.config.prefix}renew <ID location ou @client> <durée>`, value: 'Prolonge une location ou relance un bot expiré.\nExemple : `'+this.config.prefix+'renew @client 7j`' },
+                    { name: 'Durées', value: '`30m` • `2h` • `7j` • `30j` — de 1 minute à 365 jours par commande. Les commandes create et renew te sont réservées.' }
+                );
+                return reply({ embeds: [help] });
+            }
             if (command === 'create') {
                 if (args.length !== 2) throw new Error(`Utilise ${this.config.prefix}create @client 30j.`);
                 const clientId = id(args[0]), time = duration(args[1]);
