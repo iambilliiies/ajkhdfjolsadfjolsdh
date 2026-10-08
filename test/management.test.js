@@ -55,9 +55,9 @@ function setup() {
     const message = { guild, client, channel: channels.get('channel'), author: { id: ownerId }, member: { roles: { highest: { comparePositionTo: () => 1 } }, permissions: { has: () => true }, voice: { channel: null } }, attachments: new Collection(), reply: async payload => actions.push({ type: 'reply', payload }) };
     return { load, store: load('utils/managementStore.js'), factory: load('utils/managementCommands.js'), actions, confirmations, forms, guild, member, client, message, channels, roles, messages };
 }
-test('les 25 commandes de gestion sont documentées et protégées', async () => {
+test('les 26 commandes de gestion sont documentées et protégées', async () => {
     const e = setup();
-    assert.equal(e.factory.names.length, 25);
+    assert.equal(e.factory.names.length, 26);
     e.message.author.id = userId; e.message.member.permissions.has = () => false;
     for (const name of e.factory.names) {
         assert.ok(e.factory(name).helpEntries.length);

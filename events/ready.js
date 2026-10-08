@@ -41,6 +41,7 @@ module.exports = {
         // ==========================================
 
         require("../utils/presence").apply(client);
+        await require('../utils/counters').start(client);
         await require("../utils/slashGeneral").register(client);
         require("../utils/updater").schedule(client);
         await require("../utils/updateAnnouncements").publish(client);

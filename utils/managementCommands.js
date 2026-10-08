@@ -8,6 +8,7 @@ const backups = require('./backups');
 const giveaways = require('./giveaways');
 const { duration } = require('./antiraidStore');
 const definitions = {
+    counter: [['counter', 'Crée les compteurs vocaux : membres, membres actifs et membres en vocal']],
     giveaway: [['giveaway', 'Ouvre un menu interactif pour créer un giveaway']],
     end: [['end giveaway <ID>', 'Termine instantanément un giveaway à partir de l’ID de son message']],
     reroll: [['reroll', 'Rejoue le dernier giveaway terminé du serveur']],
@@ -40,6 +41,12 @@ async function execute(name, message, args, client) {
     const send = text => g.reply(message, g.embed('Gestion du serveur', text));
     const form = (title, fields, action) => ui.form(message, title, fields, action, authorize);
     const confirm = (text, action) => ui.confirm(message, text, action, authorize);
+    if (name === 'counter') {
+        const counters = require('./counters');
+        await counters.update(guild, true);
+        counters.start(client);
+        return send('Les compteurs sont prêts dans la catégorie **📊 Statistiques du serveur**.\nLes bots sont exclus. Membres actifs = en ligne, absents ou occupés (les invisibles ne sont pas comptés comme actifs).\nActualisation automatique toutes les 10 minutes.');
+    }
     if (name === 'giveaway') return form('Créer un giveaway', [
         { id: 'prize', label: 'Lot à gagner', required: true, max: 150 }, { id: 'duration', label: 'Durée (ex. 1h)', required: true }, { id: 'winners', label: 'Nombre de gagnants', required: true, max: 2 }, { id: 'channel', label: 'Salon : ID/nom (vide = ici)' }
     ], async values => {
